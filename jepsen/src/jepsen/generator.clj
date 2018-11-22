@@ -166,10 +166,7 @@
 (defgenerator DelayFn [f gen]
   [f gen]
   (op [_ test process]
-      (try
-        (Thread/sleep (* 1000 (f)))
-        (catch InterruptedException e
-          nil))
+      (Thread/sleep (* 1000 (f)))
       (op gen test process)))
 
 (defn delay-fn

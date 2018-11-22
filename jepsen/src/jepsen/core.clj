@@ -383,7 +383,7 @@
               (try
                 ; Open a new client
                 (set! (.client this) (client/open! (:client test) test node))
-                (catch Exception e
+                (catch RuntimeException e
                   (warn e "Error opening client")
                   (let [fail (assoc op
                                     :type  :fail

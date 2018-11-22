@@ -1,0 +1,97 @@
+if [ -f ~/.ssh/id_rsa.pub ];
+then
+
+  if [ ! -f ~/.started ];
+  then
+
+    touch ~/.started
+
+    #import the image
+    cat /root/cephnode.tar.gz | docker import - cephnode
+    cat /root/cephmgmt.tar.gz | docker import - cephmgmt
+
+    # start the 5 nodes
+    docker run --privileged -d --name mgmt -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name mon-node1 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name mon-node2 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name mon-node3 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name osd-node1 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name osd-node2 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+    docker run --privileged -d --name osd-node3 -e ROOT_PASS="root" -e AUTHORIZED_KEYS="`cat ~/.ssh/id_rsa.pub`" cephnode /run.sh
+
+  else
+
+    docker ps | grep -qw mgmt || docker start mgmt
+    docker ps | grep -qw mon-node1 || docker start mon-node1
+    docker ps | grep -qw mon-node2 || docker start mon-node2
+    docker ps | grep -qw mon-node3 || docker start mon-node3
+    docker ps | grep -qw osd-node1 || docker start osd-node1
+    docker ps | grep -qw osd-node2 || docker start osd-node2
+    docker ps | grep -qw osd-node3 || docker start osd-node3
+
+  fi
+
+# note the ip address and add to /etc/hosts
+MG_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' mgmt)
+M1_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' mon-node1)
+M2_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' mon-node2)
+M3_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' mon-node3)
+O1_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' osd-node1)
+O2_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' osd-node2)
+O3_IP=$(docker inspect --format '{{ .NetworkSettings.IPAddress }}' osd-node3)
+
+MG_ID=$(docker inspect --format '{{ .Config.Hostname }}' mgmt)
+M1_ID=$(docker inspect --format '{{ .Config.Hostname }}' mon-node1)
+M2_ID=$(docker inspect --format '{{ .Config.Hostname }}' mon-node2)
+M3_ID=$(docker inspect --format '{{ .Config.Hostname }}' mon-node3)
+O1_ID=$(docker inspect --format '{{ .Config.Hostname }}' osd-node1)
+O2_ID=$(docker inspect --format '{{ .Config.Hostname }}' osd-node2)
+O3_ID=$(docker inspect --format '{{ .Config.Hostname }}' osd-node3)
+
+cat <<EOF > /etc/hosts
+127.0.0.1   localhost
+::1     localhost ip6-localhost ip6-loopback
+$MG_IP mgmt $MG_ID
+$M1_IP mon-node1 $M1_ID
+$M2_IP mon-node2 $M2_ID
+$M3_IP mon-node3 $M3_ID
+$O1_IP osd-node1 $O1_ID
+$O2_IP osd-node2 $O2_ID
+$O3_IP osd-node3 $O3_ID
+EOF
+
+#setup ssh known_hosts
+ssh-keyscan -t rsa mgmt > ~/.ssh/known_hosts
+ssh-keyscan -t rsa mon-node1 >> ~/.ssh/known_hosts
+ssh-keyscan -t rsa mon-node2 >> ~/.ssh/known_hosts
+ssh-keyscan -t rsa mon-node3 >> ~/.ssh/known_hosts
+ssh-keyscan -t rsa osd-node1 >> ~/.ssh/known_hosts
+ssh-keyscan -t rsa osd-node2 >> ~/.ssh/known_hosts
+ssh-keyscan -t rsa osd-node3 >> ~/.ssh/known_hosts
+
+scp /etc/hosts mgmt:/etc/hosts
+scp /etc/hosts mon-node1:/etc/hosts
+scp /etc/hosts mon-node2:/etc/hosts
+scp /etc/hosts mon-node3:/etc/hosts
+scp /etc/hosts osd-node1:/etc/hosts
+scp /etc/hosts osd-node2:/etc/hosts
+scp /etc/hosts osd-node3:/etc/hosts
+
+echo ""
+
+cat <<EOF 
+Welcome to Ceph on Docker
+===========================
+
+This container runs the Ceph tests in sub-containers.
+
+You are currently in the base dir of the git repo for Ceph.
+If you modify the core Ceph library make sure you "lein install" it so other tests can access.
+
+To run a test:
+   cd elasticsearch && lein test 
+EOF
+
+cd /jepsen
+
+fi
